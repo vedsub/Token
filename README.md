@@ -140,7 +140,7 @@ Provides examples to guide the model's responses (coming soon).
 Create a `.env` file with:
 
 ```env
-OPENAI_API_KEY=your_gemini_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
 ## 🤝 Contributing

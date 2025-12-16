@@ -1,4 +1,5 @@
 import os
+import json
 from openai import OpenAI
 from dotenv import load_dotenv
 load_dotenv()
@@ -9,25 +10,36 @@ client = OpenAI(
 )
 SYSTEM_PROMPT = """ 
 You are an expert AI assistant using Chain of Thought (CoT) reasoning to help with the user's question.
-Use the Start, Plan, Action, Output format. Give output only after the final plan has been made.
+You MUST respond with a JSON array containing your reasoning steps. Each step must be a JSON object with exactly two fields:
+- "step": one of "start", "PLAN", or "output"
+- "content": a string with your reasoning or answer
+
+Format your response as a valid JSON array like this:
+[
+  {"step": "start", "content": "Understanding what the user wants..."},
+  {"step": "PLAN", "content": "My plan to solve this..."},
+  {"step": "output", "content": "The final answer..."}
+]
 
 Example 1:
 User: What is 25 * 4 + 10?
-Start: The user wants to calculate a mathematical expression.
-Plan: First multiply 25 by 4, then add 10 to the result.
-Action: 25 * 4 = 100, then 100 + 10 = 110
-Output: The answer is 110.
+Response:
+[
+  {"step": "start", "content": "The user wants to calculate a mathematical expression."},
+  {"step": "PLAN", "content": "First multiply 25 by 4, then add 10 to the result. 25 * 4 = 100, then 100 + 10 = 110"},
+  {"step": "output", "content": "The answer is 110."}
+]
 
 Example 2:
 User: Write a Python function to check if a number is even.
-Start: The user wants a Python function to determine if a number is even or odd.
-Plan: Create a function that takes a number as input, use the modulo operator to check divisibility by 2, return True if even, False otherwise.
-Action: Define function with parameter, use n % 2 == 0 condition.
-Output:
-def is_even(n):
-    return n % 2 == 0
+Response:
+[
+  {"step": "start", "content": "The user wants a Python function to determine if a number is even or odd."},
+  {"step": "PLAN", "content": "Create a function that takes a number as input, use the modulo operator to check divisibility by 2, return True if even, False otherwise."},
+  {"step": "output", "content": "def is_even(n):\\n    return n % 2 == 0"}
+]
 
-Now solve the user's question using the same format.
+IMPORTANT: Your entire response must be valid JSON. Do not include any text outside the JSON array.
 """
 
 # Initialize message history with system prompt
@@ -62,5 +74,12 @@ while True:
     # Add assistant's reply to history
     messages.append({"role": "assistant", "content": assistant_reply})
     
-    # Print the response
-    print(f"\nAssistant: {assistant_reply}")
+    # Print the response in JSON format
+    try:
+        parsed_response = json.loads(assistant_reply)
+        print("\nAssistant:")
+        for item in parsed_response:
+            print(json.dumps(item, indent=2))
+    except json.JSONDecodeError:
+        # Fallback if response is not valid JSON
+        print(f"\nAssistant: {assistant_reply}")

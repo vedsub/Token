@@ -1,99 +1,142 @@
 """
-FastAPI Server for RAG Queue System
+FastAPI Server for RAG with Background Tasks
 
 Endpoints:
-- POST /chat: Enqueue a message for processing
-- POST /result: Receive processed results from worker
+- POST /chat: Process a message asynchronously
 - GET /status/{job_id}: Check job status
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, BackgroundTasks
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
-import asyncio
+from typing import Optional, Dict
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_qdrant import QdrantVectorStore
+from qdrant_client import QdrantClient
+from huggingface_hub import InferenceClient
+from dotenv import load_dotenv
+import uuid
+import os
 
-app = FastAPI(title="RAG Queue API")
+load_dotenv()
 
-# In-memory store for results (use Redis/DB in production)
+app = FastAPI(title="RAG API")
+
+# In-memory store for results
 results_store: Dict[str, dict] = {}
+
+# Initialize HuggingFace client
+hf_client = InferenceClient(
+    model="Qwen/Qwen2.5-72B-Instruct",
+    token=os.getenv("HUGGINGFACE_TOKEN")
+)
+
+# Initialize embedding model
+embedding_model = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-MiniLM-L6-v2"
+)
+
+# Connect to Qdrant
+qdrant_client = QdrantClient(url="http://localhost:6333")
+vector_store = QdrantVectorStore(
+    client=qdrant_client,
+    collection_name="rag",
+    embedding=embedding_model
+)
+
+# Create retriever
+retriever = vector_store.as_retriever(
+    search_type="similarity",
+    search_kwargs={"k": 5}
+)
 
 
 class ChatMessage(BaseModel):
-    """Request model for /chat endpoint."""
     message: str
 
 
 class ChatResponse(BaseModel):
-    """Response model for /chat endpoint."""
     job_id: str
     status: str
 
 
-class ResultPayload(BaseModel):
-    """Request model for /result endpoint (from worker)."""
-    job_id: str
-    query: str
-    response: Optional[str] = None
-    error: Optional[str] = None
-    status: str
+def process_query(job_id: str, query: str):
+    """Process a query in the background."""
+    try:
+        # Mark as processing
+        results_store[job_id] = {
+            "job_id": job_id,
+            "query": query,
+            "status": "processing"
+        }
+        
+        # Retrieve relevant documents
+        docs = retriever.invoke(query)
+        context = "\n\n---\n\n".join([doc.page_content for doc in docs])
+        
+        # Create prompt
+        prompt = f"""You are a helpful assistant. Answer the user's question based on the provided context.
+If the context doesn't contain relevant information, say so.
+
+Context:
+{context}
+
+Question: {query}
+
+Answer:"""
+
+        # Generate response using HuggingFace chat completion
+        messages = [
+            {"role": "user", "content": prompt}
+        ]
+        response = hf_client.chat_completion(
+            messages=messages,
+            max_tokens=512,
+            temperature=0.7
+        )
+        response_text = response.choices[0].message.content
+        
+        # Store result
+        results_store[job_id] = {
+            "job_id": job_id,
+            "query": query,
+            "response": response_text,
+            "status": "completed"
+        }
+        
+    except Exception as e:
+        results_store[job_id] = {
+            "job_id": job_id,
+            "query": query,
+            "error": str(e),
+            "status": "failed"
+        }
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(payload: ChatMessage):
+async def chat(payload: ChatMessage, background_tasks: BackgroundTasks):
     """
-    Enqueue a message for RAG processing.
+    Submit a message for RAG processing.
     
-    The message is added to the queue and processed asynchronously.
-    Use /status/{job_id} to check the result.
+    Returns a job_id immediately. Use /status/{job_id} to get the result.
     """
-    from client.rq_client import rq_client
+    job_id = str(uuid.uuid4())
     
-    job_id = rq_client.enqueue_query(payload.message)
+    # Add task to background
+    background_tasks.add_task(process_query, job_id, payload.message)
     
-    return ChatResponse(
-        job_id=job_id,
-        status="queued"
-    )
-
-
-@app.post("/result")
-async def receive_result(payload: ResultPayload):
-    """
-    Receive processed results from the worker.
-    
-    This endpoint is called by the worker after processing a query.
-    """
-    results_store[payload.job_id] = {
-        "job_id": payload.job_id,
-        "query": payload.query,
-        "response": payload.response,
-        "error": payload.error,
-        "status": payload.status
-    }
-    
-    return {"status": "received", "job_id": payload.job_id}
+    return ChatResponse(job_id=job_id, status="processing")
 
 
 @app.get("/status/{job_id}")
 async def get_status(job_id: str):
-    """
-    Get the status of a job.
-    
-    Returns the result if completed, or current status if still processing.
-    """
-    # First check if result is in our store
+    """Get the status and result of a job."""
     if job_id in results_store:
         return results_store[job_id]
-    
-    # Otherwise check job queue status
-    from client.rq_client import rq_client
-    
-    job_status = rq_client.get_job_status(job_id)
-    return job_status
+    return {"job_id": job_id, "status": "not_found"}
 
 
 @app.get("/results")
 async def list_results():
-    """List all completed results."""
+    """List all results."""
     return {"results": list(results_store.values())}
 
 
@@ -101,7 +144,7 @@ async def list_results():
 async def root():
     """Root endpoint with API info."""
     return {
-        "message": "RAG Queue API",
+        "message": "RAG API",
         "endpoints": {
             "POST /chat": "Send a message for processing",
             "GET /status/{job_id}": "Check job status",

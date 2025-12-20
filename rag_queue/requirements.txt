@@ -7,5 +7,5 @@ python-dotenv
 langchain-huggingface
 langchain-qdrant
 qdrant-client
-google-generativeai
+huggingface_hub
 sentence-transformers

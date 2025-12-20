@@ -8,14 +8,17 @@ import requests
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
-import google.generativeai as genai
+from huggingface_hub import InferenceClient
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
 
-# Configure Gemini
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+# Configure HuggingFace Inference API
+hf_client = InferenceClient(
+    model="mistralai/Mistral-7B-Instruct-v0.3",
+    token=os.getenv("HUGGINGFACE_TOKEN")
+)
 
 # Initialize the embedding model
 embedding_model = HuggingFaceEmbeddings(
@@ -74,14 +77,17 @@ Question: {query}
 
 Answer:"""
 
-        # Step 4: Generate response using Gemini
-        model = genai.GenerativeModel("gemini-2.0-flash")
-        response = model.generate_content(prompt)
+        # Step 4: Generate response using HuggingFace
+        response = hf_client.text_generation(
+            prompt,
+            max_new_tokens=512,
+            temperature=0.7
+        )
         
         result = {
             "job_id": job_id,
             "query": query,
-            "response": response.text,
+            "response": response,
             "status": "completed"
         }
         

@@ -1,152 +1,99 @@
 # Token 🤖
 
-A collection of LLM prompting techniques and API integrations demonstrating various approaches to working with AI models including Google Gemini and Ollama.
+A collection of LLM experiments including prompting techniques, RAG systems, and AI agents.
 
 ## 📋 Overview
 
-This project showcases different prompting strategies and LLM integration patterns:
-
-- **Zero-Shot Prompting** - Direct prompting without examples
-- **Chain of Thought (CoT) Prompting** - Step-by-step reasoning approach
-- **Few-Shot Prompting** - Learning from examples
-- **Local LLM API Server** - FastAPI server using Ollama with Gemma 3
+| Module | Description |
+|--------|-------------|
+| `prompts/` | Zero-shot, Chain of Thought, Few-shot prompting |
+| `rag/` | RAG system with PDF indexing using Qdrant |
+| `rag_queue/` | Async RAG API with HuggingFace + FastAPI |
+| `weather_agent/` | AI agent with tool calling |
+| `ollama-fastapi/` | Local LLM API server |
 
 ## 🗂️ Project Structure
 
 ```
 tokenise/
 ├── prompts/
-│   ├── zero.py        # Zero-shot prompting example
-│   ├── cot.py         # Chain of Thought with interactive chat
-│   └── few.py         # Few-shot prompting (WIP)
-├── ollama-fastapi/
-│   ├── server.py      # FastAPI server for Ollama
+│   ├── zero.py          # Zero-shot prompting
+│   ├── cot.py           # Chain of Thought with chat
+│   └── few.py           # Few-shot prompting
+├── rag/
+│   ├── index.py         # PDF indexing to Qdrant
+│   └── chat.py          # RAG chat interface
+├── rag_queue/
+│   ├── server.py        # FastAPI server with background tasks
+│   ├── docker-compose.yml
 │   └── requirements.txt
-├── main.py            # Basic Gemini API usage
-├── gemini.py          # Gemini via OpenAI-compatible API
-├── requirements.txt
-└── .env               # API keys (not tracked)
+├── weather_agent/
+│   ├── agent.py         # AI agent with tools
+│   └── main.py
+└── ollama-fastapi/
+    └── server.py        # Ollama API server
 ```
 
-## 🚀 Getting Started
+## 🚀 Quick Start
 
-### Prerequisites
-
-- Python 3.10+
-- [Ollama](https://ollama.ai/) installed locally (for local LLM features)
-- Google Gemini API key (for cloud features)
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/vedsub/Token.git
-   cd Token
-   ```
-
-2. **Create and activate virtual environment**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Set up environment variables**
-   ```bash
-   cp .env.example .env
-   # Edit .env and add your API keys
-   ```
-
-### Running Ollama (for local LLM)
-
-1. **Start Ollama server**
-   ```bash
-   ollama serve
-   ```
-
-2. **Pull the Gemma 3 model**
-   ```bash
-   ollama pull gemma3:270m
-   ```
-
-## 💡 Usage
-
-### Chain of Thought Interactive Chat
-
-Run an interactive chat session with CoT reasoning:
+### 1. Setup
 
 ```bash
-python prompts/cot.py
+git clone https://github.com/vedsub/Token.git
+cd Token
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env  # Add your API keys
 ```
 
-The assistant will break down problems using the **Start → Plan → Action → Output** format.
-
-### Zero-Shot Prompting
+### 2. RAG Queue API (HuggingFace)
 
 ```bash
-python prompts/zero.py
-```
+# Start services
+cd rag_queue
+docker-compose up -d
 
-### Ollama FastAPI Server
+# Index your PDF
+cd ../rag
+python index.py
 
-Start the local API server:
-
-```bash
-cd ollama-fastapi
-uvicorn server:app --reload
+# Start API
+cd ../rag_queue
+uvicorn server:app --host 0.0.0.0 --port 8000
 ```
 
 **Endpoints:**
-- `GET /` - Health check
-- `POST /chat` - Send a message to Gemma 3
+- `POST /chat` - Submit a query (returns job_id)
+- `GET /status/{job_id}` - Get result
+- `GET /docs` - Swagger UI
 
-**Example request:**
+### 3. Prompting Examples
+
 ```bash
-curl -X POST "http://localhost:8000/chat" \
-  -H "Content-Type: application/json" \
-  -d '"Hello, how are you?"'
+python prompts/cot.py   # Interactive CoT chat
+python prompts/zero.py  # Zero-shot example
 ```
 
 ## 🛠️ Tech Stack
 
 | Component | Technology |
 |-----------|------------|
-| Cloud LLM | Google Gemini 2.5 Flash |
-| Local LLM | Ollama with Gemma 3 (270M) |
-| API Framework | FastAPI |
-| Python SDK | OpenAI, Google GenAI |
-
-## 📚 Prompting Techniques
-
-### Zero-Shot Prompting
-Direct queries without examples. Good for straightforward tasks where the model's pre-training is sufficient.
-
-### Chain of Thought (CoT)
-Encourages step-by-step reasoning:
-1. **Start** - Understand the problem
-2. **Plan** - Outline the approach
-3. **Action** - Execute the plan
-4. **Output** - Provide the final answer
-
-### Few-Shot Prompting
-Provides examples to guide the model's responses (coming soon).
+| LLM (Cloud) | HuggingFace (Qwen2.5-72B), Google Gemini |
+| LLM (Local) | Ollama (Gemma 3) |
+| Vector DB | Qdrant |
+| Embeddings | HuggingFace (all-MiniLM-L6-v2) |
+| API | FastAPI |
+| Queue | Valkey (Redis-compatible) |
 
 ## 📝 Environment Variables
 
-Create a `.env` file with:
-
 ```env
-GEMINI_API_KEY=your_gemini_api_key_here
+HUGGINGFACE_TOKEN=your_hf_token
+GEMINI_API_KEY=your_gemini_key
+OPENAI_API_KEY=your_openai_key
 ```
-
-## 🤝 Contributing
-
-Feel free to open issues or submit pull requests!
 
 ## 📄 License
 
-This project is open source and available under the [MIT License](LICENSE).
+MIT License

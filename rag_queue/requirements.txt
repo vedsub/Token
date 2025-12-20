@@ -1,0 +1,11 @@
+rq
+redis
+fastapi
+uvicorn
+requests
+python-dotenv
+langchain-huggingface
+langchain-qdrant
+qdrant-client
+google-generativeai
+sentence-transformers

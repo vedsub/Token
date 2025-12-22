@@ -9,6 +9,7 @@ A collection of LLM experiments including prompting techniques, RAG systems, and
 | `prompts/` | Zero-shot, Chain of Thought, Few-shot prompting |
 | `rag/` | RAG system with PDF indexing using Qdrant |
 | `rag_queue/` | Async RAG API with HuggingFace + FastAPI |
+| `lang_graph/` | LangGraph with conditional edges & smart routing |
 | `weather_agent/` | AI agent with tool calling |
 | `ollama-fastapi/` | Local LLM API server |
 
@@ -27,6 +28,8 @@ tokenise/
 │   ├── server.py        # FastAPI server with background tasks
 │   ├── docker-compose.yml
 │   └── requirements.txt
+├── lang_graph/
+│   └── chat.py          # Conditional edges & smart routing
 ├── weather_agent/
 │   ├── agent.py         # AI agent with tools
 │   └── main.py
@@ -75,12 +78,25 @@ python prompts/cot.py   # Interactive CoT chat
 python prompts/zero.py  # Zero-shot example
 ```
 
+### 4. LangGraph (Conditional Routing)
+
+```bash
+cd lang_graph
+python chat.py
+```
+
+**Routing Logic:**
+- Messages with "help" or "?" → Help Node
+- Messages with "joke" → Joke Node
+- Default → Chatbot Node
+
 ## 🛠️ Tech Stack
 
 | Component | Technology |
 |-----------|------------|
 | LLM (Cloud) | HuggingFace (Qwen2.5-72B), Google Gemini |
 | LLM (Local) | Ollama (Gemma 3) |
+| Graph Framework | LangGraph |
 | Vector DB | Qdrant |
 | Embeddings | HuggingFace (all-MiniLM-L6-v2) |
 | API | FastAPI |
